@@ -35,6 +35,9 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [dragged, setDragged] = useState(null);
   const [newSong, setNewSong] = useState({ title: "", artist: "", note: "", url: "" });
+  const [slug, setSlug] = useState("for-you");
+  const [saveState, setSaveState] = useState("");
+  const apiBase = import.meta.env.VITE_API_URL || "";
   const shareUrl = useMemo(() => window.location.href, []);
 
   function addSong(e) {
@@ -65,6 +68,15 @@ function App() {
     setDragged(null);
   }
 
+  async function saveMixtape() {
+    setSaveState("saving");
+    try {
+      const res = await fetch(apiBase + "/api/mixes", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ slug, title:"A little mixtape for you.", recipient:"you", message:"Songs, memories, tiny messages and all the feelings I do not always know how to say out loud.", songs }) });
+      if (!res.ok) throw new Error("save failed");
+      setSaveState("saved"); setTimeout(() => setSaveState(""), 2200);
+    } catch { setSaveState("error"); }
+  }
+
   async function share() {
     try {
       if (navigator.share) await navigator.share({ title: "Our Mixtape ♥", text: "I made this little mixtape for you.", url: shareUrl });
@@ -80,7 +92,7 @@ function App() {
     <main>
       <nav className="nav">
         <div className="logo"><span>Mixtape</span><em>for us</em></div>
-        <button className="share-btn" onClick={share}><Link2 size={15}/>{copied ? "Copied!" : "Share"}</button>
+        <div className="nav-actions"><button className="save-btn" onClick={saveMixtape}><Heart size={14} fill={saveState==="saved" ? "currentColor" : "none"}/>{saveState==="saving" ? "Saving..." : saveState==="saved" ? "Saved!" : saveState==="error" ? "Try again" : "Save"}</button><button className="share-btn" onClick={share}><Link2 size={15}/>{copied ? "Copied!" : "Share"}</button></div>
       </nav>
 
       <section className="hero section">
@@ -111,7 +123,7 @@ function App() {
           <div><p className="eyebrow">side A · our soundtrack</p><h2>The songs that<br/><i>feel like us.</i></h2></div>
           <span className="count">{String(songs.length).padStart(2,"0")} tracks</span>
         </div>
-        <p className="section-hint"><GripVertical size={14}/> drag songs to change the order · add a Spotify or YouTube link to play them here</p>
+        <div className="mix-controls"><label>your link <span>/mix/</span><input value={slug} onChange={e=>setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"-"))}/></label></div><p className="section-hint"><GripVertical size={14}/> drag songs to change the order · save to Railway when connected</p>
         <div className="song-list">
           {songs.map((song, index) => {
             const embed = getEmbedUrl(song.url);
