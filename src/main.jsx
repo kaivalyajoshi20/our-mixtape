@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Heart, Music2, Plus, GripVertical, Play, Pause, Sparkles, X, Link2, Headphones } from "lucide-react";
 import "./styles.css";
@@ -28,17 +28,51 @@ function getEmbedUrl(url) {
   return "";
 }
 
+function slugFromPath() {
+  const match = window.location.pathname.match(/^\/mix\/([a-z0-9-]{3,60})\/?$/i);
+  return match ? match[1].toLowerCase() : "for-you";
+}
+
 function App() {
+  const initialSlug = slugFromPath();
   const [songs, setSongs] = useState(starterSongs);
   const [playing, setPlaying] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dragged, setDragged] = useState(null);
   const [newSong, setNewSong] = useState({ title: "", artist: "", note: "", url: "" });
-  const [slug, setSlug] = useState("for-you");
+  const [slug, setSlug] = useState(initialSlug);
   const [saveState, setSaveState] = useState("");
+  const [loadState, setLoadState] = useState("loading");
   const apiBase = import.meta.env.VITE_API_URL || "";
-  const shareUrl = useMemo(() => window.location.href, []);
+  const shareUrl = useMemo(() => window.location.href, [slug]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!apiBase) {
+      setLoadState("ready");
+      return;
+    }
+    setLoadState("loading");
+    fetch(`${apiBase}/api/mixes/${encodeURIComponent(initialSlug)}`)
+      .then(async res => {
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error("load failed");
+        return res.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        if (data) {
+          setSlug(data.slug || initialSlug);
+          if (Array.isArray(data.songs) && data.songs.length) setSongs(data.songs);
+        }
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadState("offline");
+      });
+    return () => { cancelled = true; };
+  }, [apiBase, initialSlug]);
 
   function addSong(e) {
     e.preventDefault();
@@ -69,12 +103,32 @@ function App() {
   }
 
   async function saveMixtape() {
+    const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (cleanSlug.length < 3) {
+      setSaveState("error");
+      return;
+    }
+    setSlug(cleanSlug);
     setSaveState("saving");
     try {
-      const res = await fetch(apiBase + "/api/mixes", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ slug, title:"A little mixtape for you.", recipient:"you", message:"Songs, memories, tiny messages and all the feelings I do not always know how to say out loud.", songs }) });
+      const res = await fetch(apiBase + "/api/mixes", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          slug: cleanSlug,
+          title: "A little mixtape for you.",
+          recipient: "you",
+          message: "Songs, memories, tiny messages and all the feelings I do not always know how to say out loud.",
+          songs
+        })
+      });
       if (!res.ok) throw new Error("save failed");
-      setSaveState("saved"); setTimeout(() => setSaveState(""), 2200);
-    } catch { setSaveState("error"); }
+      window.history.pushState({}, "", `/mix/${cleanSlug}`);
+      setSaveState("saved");
+      setTimeout(() => setSaveState(""), 2200);
+    } catch {
+      setSaveState("error");
+    }
   }
 
   async function share() {
@@ -123,25 +177,17 @@ function App() {
           <div><p className="eyebrow">side A · our soundtrack</p><h2>The songs that<br/><i>feel like us.</i></h2></div>
           <span className="count">{String(songs.length).padStart(2,"0")} tracks</span>
         </div>
-        <div className="mix-controls"><label>your link <span>/mix/</span><input value={slug} onChange={e=>setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"-"))}/></label></div><p className="section-hint"><GripVertical size={14}/> drag songs to change the order · save to Railway when connected</p>
+        <div className="mix-controls"><label>your link <span>/mix/</span><input value={slug} onChange={e=>setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"-"))}/></label></div>
+        <p className="section-hint"><GripVertical size={14}/> drag songs to change the order · {loadState==="loading" ? "loading your mixtape..." : loadState==="offline" ? "API not connected yet" : "save to keep this link forever"}</p>
         <div className="song-list">
           {songs.map((song, index) => {
             const embed = getEmbedUrl(song.url);
-            return <article
-              className={`song-card ${playing === song.id ? "is-playing" : ""}`}
-              key={song.id}
-              draggable
-              onDragStart={() => setDragged(song.id)}
-              onDragOver={e => e.preventDefault()}
-              onDrop={() => dropSong(song.id)}
-            >
+            return <article className={`song-card ${playing === song.id ? "is-playing" : ""}`} key={song.id} draggable onDragStart={() => setDragged(song.id)} onDragOver={e => e.preventDefault()} onDrop={() => dropSong(song.id)}>
               <GripVertical className="grip" size={17}/>
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
               <div className="cover">{song.cover}</div>
               <div className="song-info"><h3>{song.title}</h3><p>{song.artist}</p><small>“{song.note}”</small></div>
-              <button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">
-                {playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
-              </button>
+              <button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button>
               {playing === song.id && embed && <div className="embed-wrap"><iframe src={embed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
               {playing === song.id && !embed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback.</div>}
             </article>;
