@@ -1,36 +1,68 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Heart, Music2, Plus, GripVertical, Play, Pause, Sparkles, X, Link2 } from "lucide-react";
+import { Heart, Music2, Plus, GripVertical, Play, Pause, Sparkles, X, Link2, Headphones } from "lucide-react";
 import "./styles.css";
 
 const starterSongs = [
-  { id: 1, title: "Our first song", artist: "add an artist", note: "The one that makes me think of you.", cover: "♪" },
-  { id: 2, title: "That one we played on repeat", artist: "your favorite artist", note: "Some songs just become memories.", cover: "♫" },
-  { id: 3, title: "For the late nights", artist: "your soundtrack", note: "For every little moment after midnight.", cover: "♬" }
+  { id: 1, title: "Our first song", artist: "add an artist", note: "The one that makes me think of you.", cover: "♪", url: "" },
+  { id: 2, title: "That one we played on repeat", artist: "your favorite artist", note: "Some songs just become memories.", cover: "♫", url: "" },
+  { id: 3, title: "For the late nights", artist: "your soundtrack", note: "For every little moment after midnight.", cover: "♬", url: "" }
 ];
+
+function getEmbedUrl(url) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("spotify.com")) {
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length >= 2 && ["track","album","playlist"].includes(parts[0])) {
+        return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}?utm_source=generator`;
+      }
+    }
+    if (u.hostname.includes("youtube.com")) {
+      const id = u.searchParams.get("v");
+      return id ? `https://www.youtube.com/embed/${id}` : "";
+    }
+    if (u.hostname.includes("youtu.be")) return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+  } catch {}
+  return "";
+}
 
 function App() {
   const [songs, setSongs] = useState(starterSongs);
   const [playing, setPlaying] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [newSong, setNewSong] = useState({ title: "", artist: "", note: "" });
-
-  const total = songs.length;
+  const [dragged, setDragged] = useState(null);
+  const [newSong, setNewSong] = useState({ title: "", artist: "", note: "", url: "" });
   const shareUrl = useMemo(() => window.location.href, []);
 
   function addSong(e) {
     e.preventDefault();
     if (!newSong.title.trim()) return;
-    setSongs((current) => [...current, {
+    setSongs(current => [...current, {
       id: Date.now(),
       title: newSong.title.trim(),
       artist: newSong.artist.trim() || "unknown artist",
       note: newSong.note.trim() || "A song I wanted you to have.",
-      cover: "♪"
+      cover: "♪",
+      url: newSong.url.trim()
     }]);
-    setNewSong({ title: "", artist: "", note: "" });
+    setNewSong({ title: "", artist: "", note: "", url: "" });
     setShowAdd(false);
+  }
+
+  function dropSong(targetId) {
+    if (!dragged || dragged === targetId) return;
+    setSongs(current => {
+      const next = [...current];
+      const from = next.findIndex(s => s.id === dragged);
+      const to = next.findIndex(s => s.id === targetId);
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+    setDragged(null);
   }
 
   async function share() {
@@ -61,7 +93,7 @@ function App() {
             <button className="ghost-btn" onClick={() => setShowAdd(true)}><Plus size={17}/> Add a song</button>
           </div>
         </div>
-        <div className="cassette-wrap" aria-label="decorative cassette">
+        <div className="cassette-wrap">
           <div className="tape-shadow"/>
           <div className="cassette">
             <div className="tape-top">OUR <span>LOVE</span> MIX</div>
@@ -77,20 +109,31 @@ function App() {
       <section id="songs" className="songs section">
         <div className="section-head">
           <div><p className="eyebrow">side A · our soundtrack</p><h2>The songs that<br/><i>feel like us.</i></h2></div>
-          <span className="count">{String(total).padStart(2,"0")} tracks</span>
+          <span className="count">{String(songs.length).padStart(2,"0")} tracks</span>
         </div>
+        <p className="section-hint"><GripVertical size={14}/> drag songs to change the order · add a Spotify or YouTube link to play them here</p>
         <div className="song-list">
-          {songs.map((song, index) => (
-            <article className={`song-card ${playing === song.id ? "is-playing" : ""}`} key={song.id}>
+          {songs.map((song, index) => {
+            const embed = getEmbedUrl(song.url);
+            return <article
+              className={`song-card ${playing === song.id ? "is-playing" : ""}`}
+              key={song.id}
+              draggable
+              onDragStart={() => setDragged(song.id)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => dropSong(song.id)}
+            >
               <GripVertical className="grip" size={17}/>
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
               <div className="cover">{song.cover}</div>
               <div className="song-info"><h3>{song.title}</h3><p>{song.artist}</p><small>“{song.note}”</small></div>
-              <button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Play song">
+              <button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">
                 {playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
               </button>
-            </article>
-          ))}
+              {playing === song.id && embed && <div className="embed-wrap"><iframe src={embed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
+              {playing === song.id && !embed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback.</div>}
+            </article>;
+          })}
         </div>
         <button className="add-row" onClick={() => setShowAdd(true)}><Plus size={18}/> add another song <span>+</span></button>
       </section>
@@ -120,16 +163,17 @@ function App() {
         </div>
       </section>
 
-      <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> side B coming soon</footer>
+      <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> V2 · side B coming soon</footer>
 
       {showAdd && <div className="modal-backdrop" onMouseDown={() => setShowAdd(false)}>
         <div className="modal" onMouseDown={e => e.stopPropagation()}>
           <button className="close" onClick={() => setShowAdd(false)}><X size={19}/></button>
           <p className="eyebrow">new track</p><h2>Add it to <i>our mixtape.</i></h2>
           <form onSubmit={addSong}>
-            <label>Song title<input autoFocus value={newSong.title} onChange={e=>setNewSong({...newSong,title:e.target.value})} placeholder="the song that reminds you of us"/></label>
+            <label>Song title<input autoFocus value={newSong.title} onChange={e=>setNewSong({...newSong,title:e.target.value})} placeholder="the song that reminds you of us" required/></label>
             <label>Artist<input value={newSong.artist} onChange={e=>setNewSong({...newSong,artist:e.target.value})} placeholder="who made it?"/></label>
             <label>Little message<input value={newSong.note} onChange={e=>setNewSong({...newSong,note:e.target.value})} placeholder="why this one?"/></label>
+            <label>Spotify / YouTube URL <input value={newSong.url} onChange={e=>setNewSong({...newSong,url:e.target.value})} placeholder="https://open.spotify.com/track/..."/></label>
             <button className="primary-btn" type="submit"><Music2 size={16}/> Add to mixtape</button>
           </form>
         </div>
