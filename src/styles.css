@@ -78,3 +78,6 @@ footer{padding:35px 7vw;background:#fff;display:flex;justify-content:center;gap:
   .song-card.is-playing .cover,.song-card.is-playing .play,.reel,.floating-tape-player,.floating-tape-player .tape-reel{animation:none}
   .date-card:hover,.song-card:hover .cover,.love-item:hover,.letter-paper:hover{transform:none}
 }
+
+.playful-cursor:before{content:"";position:absolute;width:170px;height:170px;left:calc(var(--mx,50vw) - 85px);top:calc(var(--my,50vh) - 85px);border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.18),transparent 68%);pointer-events:none;opacity:0;transition:opacity .3s}
+@media (hover:hover) and (pointer:fine){.playful-cursor:hover:before{opacity:1}}
