@@ -77,12 +77,17 @@ function App() {
   const [slug, setSlug] = useState(initialSlug);
   const [saveState, setSaveState] = useState("");
   const [loadState, setLoadState] = useState("loading");
+  const [notFound, setNotFound] = useState(false);
+  const [mixVersion, setMixVersion] = useState(1);
   const [ownerToken, setOwnerToken] = useState(() => sessionStorage.getItem("our-mixtape-owner-token") || "");
   const [showOwnerLogin, setShowOwnerLogin] = useState(false);
   const apiBase = import.meta.env.VITE_API_URL || "";
   const shareUrl = useMemo(() => window.location.href, [slug]);
+  const isSharedMix = window.location.pathname.startsWith("/mix/");
 
   useEffect(() => {
+    const onPopState = () => window.location.reload();
+    window.addEventListener("popstate", onPopState);
     let cancelled = false;
     if (!apiBase) {
       setLoadState("ready");
@@ -98,16 +103,21 @@ function App() {
       .then(data => {
         if (cancelled) return;
         if (data) {
+          setNotFound(false);
           setSlug(data.slug || initialSlug);
-          if (Array.isArray(data.songs) && data.songs.length) setSongs(data.songs);
-          if (Array.isArray(data.memories) && data.memories.length) setMemories(data.memories);
+          setMixVersion(Number(data.version || 1));
+          if (data.relationship_date) { setOurDate(String(data.relationship_date).slice(0,10)); localStorage.setItem("our-mixtape-date", String(data.relationship_date).slice(0,10)); }
+          if (Array.isArray(data.songs)) setSongs(data.songs.length ? data.songs : []);
+          if (Array.isArray(data.memories)) setMemories(data.memories.length ? data.memories : []);
+        } else if (isSharedMix) {
+          setNotFound(true);
         }
         setLoadState("ready");
       })
       .catch(() => {
         if (!cancelled) setLoadState("offline");
       });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.removeEventListener("popstate", onPopState); };
   }, [apiBase, initialSlug]);
 
   function openEdit(song) {
@@ -214,7 +224,9 @@ function App() {
           recipient: "you",
           message: "Songs, memories, tiny messages and all the feelings I do not always know how to say out loud.",
           songs,
-          memories
+          memories,
+          relationshipDate: ourDate || null,
+          version: mixVersion
         })
       });
       if (res.status === 401) {
@@ -223,12 +235,16 @@ function App() {
         setShowOwnerLogin(true);
         throw new Error("unauthorized");
       }
+      if (res.status === 409) {
+        setSaveState("conflict");
+        throw new Error("conflict");
+      }
       if (!res.ok) throw new Error("save failed");
       window.history.pushState({}, "", `/mix/${cleanSlug}`);
       setSaveState("saved");
       setTimeout(() => setSaveState(""), 2200);
     } catch {
-      setSaveState("error");
+      setSaveState(saveState === "conflict" ? "conflict" : "error");
     }
   }
 
@@ -238,7 +254,7 @@ function App() {
     else localStorage.removeItem("our-mixtape-date");
   }
 
-  function daysTogether() {
+  if (notFound) return (\n    <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape missing</p><h1>That little mixtape<br/><i>doesn’t exist.</i></h1><p>The link may be wrong, or this mixtape has not been saved yet.</p><a className="primary-btn" href="/">Back to our mixtape</a></section></main>\n  );\n\n  function daysTogether() {
     if (!ourDate) return null;
     const start = new Date(ourDate + "T00:00:00");
     if (Number.isNaN(start.getTime())) return null;
@@ -264,7 +280,7 @@ function App() {
     <main>
       <nav className="nav">
         <div className="logo"><span>Mixtape</span><em>for us</em></div>
-        <div className="nav-actions"><button className="save-btn" onClick={saveMixtape}><Heart size={14} fill={saveState==="saved" ? "currentColor" : "none"}/>{saveState==="saving" ? "Saving..." : saveState==="saved" ? "Saved!" : saveState==="error" ? "Try again" : "Save"}</button><button className="share-btn" onClick={share}><Link2 size={15}/>{copied ? "Copied!" : "Share"}</button></div>
+        <div className="nav-actions"><button className="save-btn" onClick={saveMixtape}><Heart size={14} fill={saveState==="saved" ? "currentColor" : "none"}/>{saveState==="saving" ? "Saving..." : saveState==="saved" ? "Saved!" : saveState==="conflict" ? "Reload needed" : saveState==="error" ? "Try again" : "Save"}</button><button className="share-btn" onClick={share}><Link2 size={15}/>{copied ? "Copied!" : "Share"}</button></div>
       </nav>
 
       <section className="hero section">
