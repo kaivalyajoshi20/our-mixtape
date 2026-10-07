@@ -12,12 +12,10 @@ const ownerToken = process.env.EDIT_TOKEN || "";
 const allowedOrigins = process.env.FRONTEND_ORIGIN?.split(",").map(s=>s.trim()).filter(Boolean) || [];
 const rateWindowMs = 60_000;
 const rateLimit = new Map();
+app.set("trust proxy", 1);
 
 function sameOrigin(origin) { return !origin || allowedOrigins.includes(origin); }
-function clientIp(req) {
-  const forwarded = req.get("x-forwarded-for");
-  return (forwarded ? forwarded.split(",")[0].trim() : req.ip) || "unknown";
-}
+function clientIp(req) { return req.ip || "unknown"; }
 function rateLimited(ip) {
   const now = Date.now(), entry = rateLimit.get(ip);
   if (!entry || now - entry.start > rateWindowMs) { rateLimit.set(ip,{start:now,count:1}); return false; }
