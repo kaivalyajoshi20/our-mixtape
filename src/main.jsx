@@ -9,6 +9,21 @@ const starterSongs = [
   { id: 3, title: "For the late nights", artist: "your soundtrack", note: "For every little moment after midnight.", cover: "♬", url: "" }
 ];
 
+const starterMemories = [
+  { id: 1, title: "The beginning", date: "the day it all started", story: "A tiny moment that became a very big part of my life.", image: "" },
+  { id: 2, title: "That one perfect day", date: "a favorite memory", story: "The kind of day I wish I could replay whenever I miss you.", image: "" },
+  { id: 3, title: "Still my favorite", date: "one of many", story: "There are a thousand little reasons I would choose you again.", image: "" }
+];
+
+const missYouMessages = [
+  "If you miss me, press play. I am probably missing you too. ♡",
+  "Come here. Consider this a tiny digital hug.",
+  "Somewhere out there, I am thinking about you right now.",
+  "You are my favorite notification.",
+  "Okay, enough missing me. Come give me a hug. ♥",
+  "I would choose you in every version of this story."
+];
+
 function getYouTubeVideoId(url) {
   if (!url) return "";
   try {
@@ -46,7 +61,12 @@ function slugFromPath() {
 function App() {
   const initialSlug = slugFromPath();
   const [songs, setSongs] = useState(starterSongs);
+  const [memories, setMemories] = useState(starterMemories);
   const [playing, setPlaying] = useState(null);
+  const [missYouMessage, setMissYouMessage] = useState("");
+  const [ourDate, setOurDate] = useState(() => localStorage.getItem("our-mixtape-date") || "");
+  const [showMemory, setShowMemory] = useState(false);
+  const [newMemory, setNewMemory] = useState({ title: "", date: "", story: "", image: "" });
   const [floatingPlayer, setFloatingPlayer] = useState(null);
   const [tapeCorner, setTapeCorner] = useState("top-right");
   const [showAdd, setShowAdd] = useState(false);
@@ -78,6 +98,7 @@ function App() {
         if (data) {
           setSlug(data.slug || initialSlug);
           if (Array.isArray(data.songs) && data.songs.length) setSongs(data.songs);
+          if (Array.isArray(data.memories) && data.memories.length) setMemories(data.memories);
         }
         setLoadState("ready");
       })
@@ -127,6 +148,20 @@ function App() {
     setEditingSong(null);
   }
 
+  function addMemory(e) {
+    e.preventDefault();
+    if (!newMemory.title.trim()) return;
+    setMemories(current => [...current, {
+      id: Date.now(),
+      title: newMemory.title.trim(),
+      date: newMemory.date.trim() || "a little memory",
+      story: newMemory.story.trim() || "One of those moments I want to keep forever.",
+      image: newMemory.image.trim()
+    }]);
+    setNewMemory({ title: "", date: "", story: "", image: "" });
+    setShowMemory(false);
+  }
+
   function addSong(e) {
     e.preventDefault();
     if (!newSong.title.trim()) return;
@@ -172,7 +207,8 @@ function App() {
           title: "A little mixtape for you.",
           recipient: "you",
           message: "Songs, memories, tiny messages and all the feelings I do not always know how to say out loud.",
-          songs
+          songs,
+          memories
         })
       });
       if (!res.ok) throw new Error("save failed");
@@ -182,6 +218,23 @@ function App() {
     } catch {
       setSaveState("error");
     }
+  }
+
+  function saveOurDate(value) {
+    setOurDate(value);
+    if (value) localStorage.setItem("our-mixtape-date", value);
+    else localStorage.removeItem("our-mixtape-date");
+  }
+
+  function daysTogether() {
+    if (!ourDate) return null;
+    const start = new Date(ourDate + "T00:00:00");
+    if (Number.isNaN(start.getTime())) return null;
+    return Math.max(0, Math.floor((Date.now() - start.getTime()) / 86400000));
+  }
+
+  function surpriseMe() {
+    setMissYouMessage(missYouMessages[Math.floor(Math.random() * missYouMessages.length)]);
   }
 
   async function share() {
@@ -268,18 +321,40 @@ function App() {
         <button className="floating-close" onClick={() => { setFloatingPlayer(null); setPlaying(null); }} aria-label="Stop playback"><X size={13}/></button>
       </div>}
 
-      <section className="memories section">
-        <div className="memory-copy">
-          <p className="eyebrow"><Sparkles size={13}/> little things</p>
-          <h2>My favorite<br/><i>things about you.</i></h2>
-          <div className="love-list">
-            {["The way you laugh before you finish a joke.", "How you make ordinary days feel special.", "Your little messages that instantly fix my mood.", "The fact that somehow, you feel like home."].map((item,i)=><div className="love-item" key={item}><span>0{i+1}</span><p>{item}</p></div>)}
+      <section className="story section">
+        <div className="story-top">
+          <div>
+            <p className="eyebrow"><Heart size={13} fill="currentColor"/> our little timeline</p>
+            <h2>All the little<br/><i>moments.</i></h2>
+          </div>
+          <div className="date-card">
+            <span>our day</span>
+            <input type="date" value={ourDate} onChange={e => saveOurDate(e.target.value)} aria-label="Our special date"/>
+            {ourDate && <strong>{daysTogether()} days together ♡</strong>}
+            {!ourDate && <small>pick the date our story began</small>}
           </div>
         </div>
-        <div className="photo-stack">
-          <div className="photo photo-one"><span>your photo<br/>goes here</span></div>
-          <div className="photo photo-two"><span>and another<br/>little memory ♡</span></div>
-          <p className="caption">proof that my favorite place<br/>is wherever you are.</p>
+        <div className="timeline">
+          {memories.map((memory, i) => <article className="memory-card" key={memory.id}>
+            <div className="memory-number">0{i + 1}</div>
+            <div className="memory-image">{memory.image ? <img src={memory.image} alt="" /> : <span>add a<br/>photo ♡</span>}</div>
+            <div className="memory-body">
+              <p className="memory-date">{memory.date}</p>
+              <h3>{memory.title}</h3>
+              <p>{memory.story}</p>
+            </div>
+          </article>)}
+        </div>
+        <button className="add-memory" onClick={() => setShowMemory(true)}><Plus size={17}/> add a memory</button>
+      </section>
+
+      <section className="favorites section">
+        <div className="favorites-head">
+          <p className="eyebrow"><Sparkles size={13}/> little things</p>
+          <h2>Things I love<br/><i>about you.</i></h2>
+        </div>
+        <div className="love-list">
+          {["The way you laugh before you finish a joke.", "How you make ordinary days feel special.", "Your little messages that instantly fix my mood.", "The fact that somehow, you feel like home."].map((item,i)=><div className="love-item" key={item}><span>0{i+1}</span><p>{item}</p></div>)}
         </div>
       </section>
 
@@ -289,11 +364,16 @@ function App() {
           <h2>Hey, you.</h2>
           <p className="letter-text">If I could put every tiny moment that made me fall for you into a box, it would probably look a lot like this. So here's a little collection of songs and memories instead.</p>
           <p className="letter-text">Thank you for being my favorite person to talk to, laugh with, annoy, miss and love. I hope whenever you press play, you remember how very, very loved you are.</p>
+          <div className="miss-me">
+            <p>missing me?</p>
+            <button onClick={surpriseMe}><Heart size={17} fill="currentColor"/> press this</button>
+            {missYouMessage && <div className="miss-message">{missYouMessage}</div>}
+          </div>
           <p className="signature">always yours ♡</p>
         </div>
       </section>
 
-      <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> V2 · side B coming soon</footer>
+      <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> V3 · our little world</footer>
 
       {editingSong && <div className="modal-backdrop" onMouseDown={() => setEditingSong(null)}>
         <div className="modal" onMouseDown={e => e.stopPropagation()}>
@@ -305,6 +385,20 @@ function App() {
             <label>Little message<input value={editingSong.note} onChange={e=>setEditingSong({...editingSong,note:e.target.value})}/></label>
             <label>Spotify / YouTube URL<input value={editingSong.url} onChange={e=>setEditingSong({...editingSong,url:e.target.value})} placeholder="https://www.youtube.com/watch?v=..."/></label>
             <button className="primary-btn" type="submit"><Pencil size={16}/> Save track</button>
+          </form>
+        </div>
+      </div>}
+
+      {showMemory && <div className="modal-backdrop" onMouseDown={() => setShowMemory(false)}>
+        <div className="modal memory-modal" onMouseDown={e => e.stopPropagation()}>
+          <button className="close" onClick={() => setShowMemory(false)}><X size={19}/></button>
+          <p className="eyebrow">new memory</p><h2>Keep this <i>forever.</i></h2>
+          <form onSubmit={addMemory}>
+            <label>Memory title<input autoFocus value={newMemory.title} onChange={e=>setNewMemory({...newMemory,title:e.target.value})} placeholder="our first date" required/></label>
+            <label>Date or little label<input value={newMemory.date} onChange={e=>setNewMemory({...newMemory,date:e.target.value})} placeholder="that rainy Tuesday"/></label>
+            <label>What happened?<input value={newMemory.story} onChange={e=>setNewMemory({...newMemory,story:e.target.value})} placeholder="tell the tiny story"/></label>
+            <label>Photo URL <input value={newMemory.image} onChange={e=>setNewMemory({...newMemory,image:e.target.value})} placeholder="optional image link"/></label>
+            <button className="primary-btn" type="submit"><Heart size={16} fill="currentColor"/> Save memory</button>
           </form>
         </div>
       </div>}
