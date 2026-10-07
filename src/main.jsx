@@ -214,6 +214,7 @@ function App() {
     }
     setSlug(cleanSlug);
     setSaveState("saving");
+    let conflict = false;
     try {
       const res = await fetch(apiBase + "/api/mixes", {
         method: "POST",
@@ -236,15 +237,17 @@ function App() {
         throw new Error("unauthorized");
       }
       if (res.status === 409) {
-        setSaveState("conflict");
+        conflict = true;
         throw new Error("conflict");
       }
       if (!res.ok) throw new Error("save failed");
+      const saved = await res.json();
+      setMixVersion(Number(saved.version || mixVersion + 1));
       window.history.pushState({}, "", `/mix/${cleanSlug}`);
       setSaveState("saved");
       setTimeout(() => setSaveState(""), 2200);
     } catch {
-      setSaveState(saveState === "conflict" ? "conflict" : "error");
+      setSaveState(conflict ? "conflict" : "error");
     }
   }
 
@@ -320,7 +323,7 @@ function App() {
             return <article className={`song-card ${playing === song.id ? "is-playing" : ""}`} key={song.id} draggable onDragStart={() => setDragged(song.id)} onDragOver={e => e.preventDefault()} onDrop={() => dropSong(song.id)}>
               <GripVertical className="grip" size={17}/>
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
-              <div className="cover">{song.cover}</div>
+              <div className="cover">{song.cover || "♪"}</div>
               <div className="song-info"><h3>{song.title}</h3><p>{song.artist}</p><small>“{song.note}”</small></div>
               <div className="song-actions"><button className="edit-song" onClick={() => openEdit(song)} aria-label={`Edit ${song.title}`}><Pencil size={14}/></button><button className="play" onClick={() => toggleSong(song)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button></div>
               {playing === song.id && spotifyEmbed && <div className="embed-wrap"><iframe src={spotifyEmbed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
