@@ -16,7 +16,8 @@ const fallbackMix = {
   title:"A little mixtape for you.",
   recipient:"you",
   message:"Songs, memories, tiny messages and all the feelings I don't always know how to say out loud.",
-  songs:[]
+  songs:[],
+  memories:[]
 };
 
 async function initDb() {
@@ -28,9 +29,11 @@ async function initDb() {
       title TEXT NOT NULL,
       recipient TEXT DEFAULT '',
       message TEXT DEFAULT '',
+      memories JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE mixtapes ADD COLUMN IF NOT EXISTS memories JSONB NOT NULL DEFAULT '[]'::jsonb;
     CREATE TABLE IF NOT EXISTS songs (
       id BIGSERIAL PRIMARY KEY,
       mixtape_id BIGINT REFERENCES mixtapes(id) ON DELETE CASCADE,
@@ -48,7 +51,7 @@ async function getMix(slug) {
   const { rows } = await pool.query("SELECT * FROM mixtapes WHERE slug=$1",[slug]);
   if (!rows[0]) return null;
   const songs = await pool.query("SELECT id,position,title,artist,note,url FROM songs WHERE mixtape_id=$1 ORDER BY position,id",[rows[0].id]);
-  return { ...rows[0], songs:songs.rows };
+  return { ...rows[0], memories: Array.isArray(rows[0].memories) ? rows[0].memories : [], songs:songs.rows };
 }
 
 app.get("/health", async (_req,res) => {
@@ -68,15 +71,15 @@ app.get("/api/mixes/:slug", async (req,res) => {
 
 app.post("/api/mixes", async (req,res) => {
   if (!pool) return res.status(503).json({error:"Database is not configured yet"});
-  const { slug, title, recipient="", message="", songs=[] } = req.body || {};
+  const { slug, title, recipient="", message="", songs=[], memories=[] } = req.body || {};
   if (!slug || !title) return res.status(400).json({error:"slug and title are required"});
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) return res.status(400).json({error:"slug must use lowercase letters, numbers and hyphens"});
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const mix = await client.query(
-      "INSERT INTO mixtapes(slug,title,recipient,message) VALUES($1,$2,$3,$4) ON CONFLICT(slug) DO UPDATE SET title=EXCLUDED.title,recipient=EXCLUDED.recipient,message=EXCLUDED.message,updated_at=NOW() RETURNING *",
-      [slug,title,recipient,message]
+      "INSERT INTO mixtapes(slug,title,recipient,message,memories) VALUES($1,$2,$3,$4,$5) ON CONFLICT(slug) DO UPDATE SET title=EXCLUDED.title,recipient=EXCLUDED.recipient,message=EXCLUDED.message,memories=EXCLUDED.memories,updated_at=NOW() RETURNING *",
+      [slug,title,recipient,message,JSON.stringify(Array.isArray(memories) ? memories : [])]
     );
     await client.query("DELETE FROM songs WHERE mixtape_id=$1",[mix.rows[0].id]);
     for (const [position,song] of songs.entries()) {
