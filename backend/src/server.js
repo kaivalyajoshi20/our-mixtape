@@ -42,8 +42,10 @@ function cleanMemories(value) {
 }
 
 app.use(cors({
-  origin(origin,callback){ if(sameOrigin(origin)) return callback(null,true); return callback(new Error("CORS blocked")); },
-  methods:["GET","POST","OPTIONS"], allowedHeaders:["Content-Type","Authorization"]
+  origin(origin,callback){ return callback(null, sameOrigin(origin)); },
+  methods:["GET","POST","OPTIONS"],
+  allowedHeaders:["Content-Type","Authorization"],
+  optionsSuccessStatus:204
 }));
 app.disable("x-powered-by");
 app.use((req,res,next)=>{
