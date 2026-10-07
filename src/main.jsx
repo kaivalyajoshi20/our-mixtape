@@ -136,6 +136,21 @@ function App() {
     return () => { cancelled = true; window.removeEventListener("popstate", onPopState); };
   }, [apiBase, initialSlug]);
 
+  useEffect(() => {
+    const items = document.querySelectorAll(".skiper-reveal");
+    if (!items.length) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+    items.forEach(item => observer.observe(item));
+    return () => observer.disconnect();
+  }, [loadState]);
+
   function openEdit(song) {
     setEditingSong({...song});
   }
@@ -318,7 +333,7 @@ function App() {
       <section className="hero section">
         <div className="hero-copy">
           <p className="eyebrow"><Heart size={13} fill="currentColor"/> made with stupid amounts of love</p>
-          <h1>A little<br/><i>mixtape</i> for you.</h1>
+          <h1 className="skiper-title">A little<br/><i>mixtape</i> for you.</h1>
           <p className="hero-note">Songs, memories, tiny messages and all the feelings I don't always know how to say out loud.</p>
           <div className="hero-actions">
             <a href="#songs" className="primary-btn">Open our mixtape <span>↓</span></a>
@@ -339,7 +354,7 @@ function App() {
       </section>
 
       <section id="songs" className="songs section">
-        <div className="section-head">
+        <div className="section-head skiper-reveal">
           <div><p className="eyebrow">side A · our soundtrack</p><h2>The songs that<br/><i>feel like us.</i></h2></div>
           <span className="count">{String(songs.length).padStart(2,"0")} tracks</span>
         </div>
@@ -349,7 +364,7 @@ function App() {
           {songs.map((song, index) => {
             const youtubeId = getYouTubeVideoId(song.url);
             const spotifyEmbed = getSpotifyEmbedUrl(song.url);
-            return <article className={`song-card ${playing === song.id ? "is-playing" : ""}`} key={song.id} draggable onDragStart={() => setDragged(song.id)} onDragOver={e => e.preventDefault()} onDrop={() => dropSong(song.id)}>
+            return <article className={`song-card skiper-reveal ${playing === song.id ? "is-playing" : ""}`} key={song.id} draggable onDragStart={() => setDragged(song.id)} onDragOver={e => e.preventDefault()} onDrop={() => dropSong(song.id)}>
               <GripVertical className="grip" size={17}/>
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
               <div className="cover">{song.cover || "♪"}</div>
@@ -382,7 +397,7 @@ function App() {
       </div>}
 
       <section className="story section">
-        <div className="story-top">
+        <div className="story-top skiper-reveal">
           <div>
             <p className="eyebrow"><Heart size={13} fill="currentColor"/> our little timeline</p>
             <h2>All the little<br/><i>moments.</i></h2>
@@ -395,7 +410,7 @@ function App() {
           </div>
         </div>
         <div className="timeline">
-          {memories.map((memory, i) => <article className="memory-card" key={memory.id}>
+          {memories.map((memory, i) => <article className="memory-card skiper-reveal" key={memory.id}>
             <div className="memory-number">0{i + 1}</div>
             <div className="memory-image">{memory.image ? <img src={memory.image} alt="" /> : <span>add a<br/>photo ♡</span>}</div>
             <div className="memory-body">
@@ -409,17 +424,17 @@ function App() {
       </section>
 
       <section className="favorites section">
-        <div className="favorites-head">
+        <div className="favorites-head skiper-reveal">
           <p className="eyebrow"><Sparkles size={13}/> little things</p>
           <h2>Things I love<br/><i>about you.</i></h2>
         </div>
-        <div className="love-list">
+        <div className="love-list skiper-reveal">
           {["The way you laugh before you finish a joke.", "How you make ordinary days feel special.", "Your little messages that instantly fix my mood.", "The fact that somehow, you feel like home."].map((item,i)=><div className="love-item" key={item}><span>0{i+1}</span><p>{item}</p></div>)}
         </div>
       </section>
 
       <section className="letter section">
-        <div className="letter-paper">
+        <div className="letter-paper skiper-reveal">
           <p className="hand">a note for you</p>
           <h2>Hey, you.</h2>
           <p className="letter-text">If I could put every tiny moment that made me fall for you into a box, it would probably look a lot like this. So here's a little collection of songs and memories instead.</p>
