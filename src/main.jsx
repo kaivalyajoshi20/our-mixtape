@@ -28,8 +28,14 @@ function getYouTubeVideoId(url) {
   if (!url) return "";
   try {
     const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
-    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1).split("/")[0];
+    const host = u.hostname.toLowerCase();
+    if (host === "youtu.be") return u.pathname.split("/").filter(Boolean)[0] || "";
+    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      const queryId = u.searchParams.get("v");
+      if (queryId) return queryId;
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (["shorts", "embed", "live"].includes(parts[0])) return parts[1] || "";
+    }
   } catch {}
   return "";
 }
@@ -64,7 +70,7 @@ function App() {
   const [memories, setMemories] = useState(starterMemories);
   const [playing, setPlaying] = useState(null);
   const [missYouMessage, setMissYouMessage] = useState("");
-  const [ourDate, setOurDate] = useState(() => localStorage.getItem("our-mixtape-date") || "");
+  const [ourDate, setOurDate] = useState(() => localStorage.getItem(`our-mixtape-date-${initialSlug}`) || "");
   const [showMemory, setShowMemory] = useState(false);
   const [newMemory, setNewMemory] = useState({ title: "", date: "", story: "", image: "" });
   const [floatingPlayer, setFloatingPlayer] = useState(null);
@@ -78,6 +84,7 @@ function App() {
   const [saveState, setSaveState] = useState("");
   const [loadState, setLoadState] = useState("loading");
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [mixVersion, setMixVersion] = useState(1);
   const [ownerToken, setOwnerToken] = useState(() => sessionStorage.getItem("our-mixtape-owner-token") || "");
   const [showOwnerLogin, setShowOwnerLogin] = useState(false);
@@ -103,10 +110,15 @@ function App() {
       .then(data => {
         if (cancelled) return;
         if (data) {
+          const loadedSlug = data.slug || initialSlug;
+          const loadedDate = data.relationship_date ? String(data.relationship_date).slice(0,10) : "";
           setNotFound(false);
-          setSlug(data.slug || initialSlug);
+          setLoadError(false);
+          setSlug(loadedSlug);
           setMixVersion(Number(data.version || 1));
-          if (data.relationship_date) { setOurDate(String(data.relationship_date).slice(0,10)); localStorage.setItem("our-mixtape-date", String(data.relationship_date).slice(0,10)); }
+          setOurDate(loadedDate);
+          if (loadedDate) localStorage.setItem(`our-mixtape-date-${loadedSlug}`, loadedDate);
+          else localStorage.removeItem(`our-mixtape-date-${loadedSlug}`);
           if (Array.isArray(data.songs)) setSongs(data.songs.length ? data.songs : []);
           if (Array.isArray(data.memories)) setMemories(data.memories.length ? data.memories : []);
         } else if (isSharedMix) {
@@ -115,7 +127,10 @@ function App() {
         setLoadState("ready");
       })
       .catch(() => {
-        if (!cancelled) setLoadState("offline");
+        if (!cancelled) {
+          setLoadState("offline");
+          if (isSharedMix) setLoadError(true);
+        }
       });
     return () => { cancelled = true; window.removeEventListener("popstate", onPopState); };
   }, [apiBase, initialSlug]);
@@ -253,9 +268,14 @@ function App() {
 
   function saveOurDate(value) {
     setOurDate(value);
-    if (value) localStorage.setItem("our-mixtape-date", value);
-    else localStorage.removeItem("our-mixtape-date");
+    const dateKey = `our-mixtape-date-${slug}`;
+    if (value) localStorage.setItem(dateKey, value);
+    else localStorage.removeItem(dateKey);
   }
+
+  if (loadError) return (
+    <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape unavailable</p><h1>We lost the<br/><i>connection.</i></h1><p>This shared mixtape could not be loaded right now. Nothing was replaced with demo content.</p><button className="primary-btn" onClick={() => window.location.reload()}>Try again</button></section></main>
+  );
 
   if (notFound) return (
     <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape missing</p><h1>That little mixtape<br/><i>doesn’t exist.</i></h1><p>The link may be wrong, or this mixtape has not been saved yet.</p><a className="primary-btn" href="/">Back to our mixtape</a></section></main>
