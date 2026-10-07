@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Heart, Music2, Plus, GripVertical, Play, Pause, Sparkles, X, Link2, Headphones } from "lucide-react";
+import { Heart, Music2, Plus, GripVertical, Play, Pause, Sparkles, X, Link2, Headphones, Pencil } from "lucide-react";
 import "./styles.css";
 
 const starterSongs = [
@@ -23,7 +23,7 @@ function getEmbedUrl(url) {
       const id = u.searchParams.get("v");
       return id ? `https://www.youtube.com/embed/${id}` : "";
     }
-    if (u.hostname.includes("youtu.be")) return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+    if (u.hostname.includes("youtu.be")) return `https://www.youtube-nocookie.com/embed/${u.pathname.slice(1)}?playsinline=1&rel=0&enablejsapi=1`;
   } catch {}
   return "";
 }
@@ -37,7 +37,7 @@ function App() {
   const initialSlug = slugFromPath();
   const [songs, setSongs] = useState(starterSongs);
   const [playing, setPlaying] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);\n  const [editingSong, setEditingSong] = useState(null);
   const [copied, setCopied] = useState(false);
   const [dragged, setDragged] = useState(null);
   const [newSong, setNewSong] = useState({ title: "", artist: "", note: "", url: "" });
@@ -73,6 +73,23 @@ function App() {
       });
     return () => { cancelled = true; };
   }, [apiBase, initialSlug]);
+
+  function openEdit(song) {
+    setEditingSong({...song});
+  }
+
+  function saveEditedSong(e) {
+    e.preventDefault();
+    if (!editingSong?.title?.trim()) return;
+    setSongs(current => current.map(song => song.id === editingSong.id ? {
+      ...song,
+      title: editingSong.title.trim(),
+      artist: editingSong.artist.trim() || "unknown artist",
+      note: editingSong.note.trim() || "A song I wanted you to have.",
+      url: editingSong.url.trim()
+    } : song));
+    setEditingSong(null);
+  }
 
   function addSong(e) {
     e.preventDefault();
@@ -187,9 +204,9 @@ function App() {
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
               <div className="cover">{song.cover}</div>
               <div className="song-info"><h3>{song.title}</h3><p>{song.artist}</p><small>“{song.note}”</small></div>
-              <button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button>
+              <div className="song-actions"><button className="edit-song" onClick={() => openEdit(song)} aria-label={`Edit ${song.title}`}><Pencil size={14}/></button><button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button></div>
               {playing === song.id && embed && <div className="embed-wrap"><iframe src={embed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
-              {playing === song.id && !embed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback.</div>}
+              {playing === song.id && !embed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback. <button className="inline-edit" onClick={() => openEdit(song)}>Add link</button></div>}
             </article>;
           })}
         </div>
@@ -222,6 +239,20 @@ function App() {
       </section>
 
       <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> V2 · side B coming soon</footer>
+
+      {editingSong && <div className="modal-backdrop" onMouseDown={() => setEditingSong(null)}>
+        <div className="modal" onMouseDown={e => e.stopPropagation()}>
+          <button className="close" onClick={() => setEditingSong(null)}><X size={19}/></button>
+          <p className="eyebrow">edit track</p><h2>Make it <i>yours.</i></h2>
+          <form onSubmit={saveEditedSong}>
+            <label>Song title<input autoFocus value={editingSong.title} onChange={e=>setEditingSong({...editingSong,title:e.target.value})} required/></label>
+            <label>Artist<input value={editingSong.artist} onChange={e=>setEditingSong({...editingSong,artist:e.target.value})}/></label>
+            <label>Little message<input value={editingSong.note} onChange={e=>setEditingSong({...editingSong,note:e.target.value})}/></label>
+            <label>Spotify / YouTube URL<input value={editingSong.url} onChange={e=>setEditingSong({...editingSong,url:e.target.value})} placeholder="https://www.youtube.com/watch?v=..."/></label>
+            <button className="primary-btn" type="submit"><Pencil size={16}/> Save track</button>
+          </form>
+        </div>
+      </div>}
 
       {showAdd && <div className="modal-backdrop" onMouseDown={() => setShowAdd(false)}>
         <div className="modal" onMouseDown={e => e.stopPropagation()}>
