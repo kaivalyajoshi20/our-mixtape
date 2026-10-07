@@ -24,3 +24,27 @@ footer{padding:35px 7vw;background:#fff;display:flex;justify-content:center;gap:
 @media(max-width:800px){.story-top{align-items:start;flex-direction:column}.date-card{align-self:flex-end}.timeline{grid-template-columns:1fr}.memory-card{display:grid;grid-template-columns:110px 1fr;gap:12px}.memory-number{grid-column:1/-1;margin-bottom:0}.memory-image{height:150px}.memory-body{padding:4px 0}.memory-body h3{font-size:21px}.favorites{grid-template-columns:1fr;gap:35px}.favorites .love-list{margin-top:0}}
 @media(max-width:450px){.story-top h2,.favorites-head h2{font-size:43px}.date-card{min-width:175px}.memory-card{grid-template-columns:92px 1fr;padding:11px}.memory-image{height:125px}.memory-body h3{font-size:18px}.memory-body p:last-child{font-size:13px}.memory-date{font-size:8px}.miss-message{font-size:14px}.letter-paper{box-shadow:7px 8px 0 #d79a9c}}
 .owner-note{font:14px Georgia,serif;line-height:1.55;color:#555;margin:0 0 18px}.modal input[type=password]{letter-spacing:2px}
+
+/* Skiper-inspired motion layer: original implementation for our mixtape */
+.skiper-reveal{opacity:0;transform:translateY(28px) scale(.985);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);will-change:opacity,transform}
+.skiper-reveal.is-visible{opacity:1;transform:translateY(0) scale(1)}
+.song-card.skiper-reveal:nth-child(2){transition-delay:.06s}
+.song-card.skiper-reveal:nth-child(3){transition-delay:.12s}
+.song-card.skiper-reveal:nth-child(4){transition-delay:.18s}
+.memory-card.skiper-reveal:nth-child(2){transition-delay:.08s}
+.memory-card.skiper-reveal:nth-child(3){transition-delay:.16s}
+.skiper-title i{display:inline-block;animation:skiper-roll-in 900ms cubic-bezier(.16,1,.3,1) both;animation-delay:.18s;transform-origin:50% 100%}
+@keyframes skiper-roll-in{0%{opacity:0;transform:perspective(500px) rotateX(-75deg) translateY(18px);filter:blur(4px)}70%{opacity:1;transform:perspective(500px) rotateX(8deg) translateY(-2px);filter:blur(0)}100%{transform:perspective(500px) rotateX(0) translateY(0)}}
+.cassette-wrap{transition:transform .55s cubic-bezier(.22,1,.36,1)}
+.cassette-wrap:hover{transform:rotate(1deg) translateY(-8px) scale(1.015)}
+.memory-card{transition:transform .45s cubic-bezier(.22,1,.36,1),box-shadow .3s ease}
+.memory-card:hover{transform:rotate(var(--r,0deg)) translateY(-9px) rotateX(1deg);box-shadow:10px 14px 0 #9ab8c0}
+.primary-btn,.ghost-btn,.save-btn,.share-btn,.add-row,.add-memory,.miss-me button,.play,.edit-song{transition:transform .22s cubic-bezier(.22,1,.36,1),box-shadow .22s ease,background .22s ease}
+.primary-btn:hover,.ghost-btn:hover,.save-btn:hover,.share-btn:hover,.add-row:hover,.add-memory:hover,.miss-me button:hover{transform:translateY(-3px)}
+.primary-btn:active,.ghost-btn:active,.save-btn:active,.share-btn:active,.add-row:active,.add-memory:active,.miss-me button:active,.play:active,.edit-song:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .skiper-reveal,.skiper-reveal.is-visible{opacity:1;transform:none;transition:none}
+  .skiper-title i{animation:none}
+  .cassette-wrap:hover,.memory-card:hover{transform:none}
+}
