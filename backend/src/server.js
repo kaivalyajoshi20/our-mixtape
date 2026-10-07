@@ -14,6 +14,10 @@ const rateWindowMs = 60_000;
 const rateLimit = new Map();
 
 function sameOrigin(origin) { return !origin || allowedOrigins.includes(origin); }
+function clientIp(req) {
+  const forwarded = req.get("x-forwarded-for");
+  return (forwarded ? forwarded.split(",")[0].trim() : req.ip) || "unknown";
+}
 function rateLimited(ip) {
   const now = Date.now(), entry = rateLimit.get(ip);
   if (!entry || now - entry.start > rateWindowMs) { rateLimit.set(ip,{start:now,count:1}); return false; }
@@ -36,9 +40,17 @@ function cleanUrl(value) {
   } catch {}
   return "";
 }
+function cleanImageUrl(value) {
+  const raw=cleanText(value,2000); if(!raw) return "";
+  try {
+    const u=new URL(raw);
+    if(u.protocol!=="https:" || u.username || u.password) return "";
+    return u.toString();
+  } catch { return ""; }
+}
 function cleanMemories(value) {
   if(!Array.isArray(value)) return [];
-  return value.slice(0,50).map((m,i)=>({id:Number.isFinite(Number(m?.id))?Number(m.id):Date.now()+i,title:cleanText(m?.title,160),date:cleanText(m?.date,120),story:cleanText(m?.story,1000),image:cleanUrl(m?.image)})).filter(m=>m.title);
+  return value.slice(0,50).map((m,i)=>({id:Number.isFinite(Number(m?.id))?Number(m.id):Date.now()+i,title:cleanText(m?.title,160),date:cleanText(m?.date,120),story:cleanText(m?.story,1000),image:cleanImageUrl(m?.image)})).filter(m=>m.title);
 }
 
 app.use(cors({
@@ -57,7 +69,10 @@ app.use((req,res,next)=>{
   if(process.env.NODE_ENV==="production") res.setHeader("Strict-Transport-Security","max-age=31536000; includeSubDomains");
   next();
 });
-app.use((req,res,next)=>rateLimited(req.ip)?res.status(429).json({error:"Too many requests"}):next());
+app.use((req,res,next)=>{
+  if (req.path === "/health") return next();
+  return rateLimited(clientIp(req)) ? res.status(429).json({error:"Too many requests"}) : next();
+});
 app.use(express.json({ limit:"256kb" }));
 
 const fallbackMix = {
@@ -66,7 +81,9 @@ const fallbackMix = {
   recipient:"you",
   message:"Songs, memories, tiny messages and all the feelings I don't always know how to say out loud.",
   songs:[],
-  memories:[]
+  memories:[],
+  relationship_date:null,
+  version:1
 };
 
 async function initDb() {
@@ -79,10 +96,14 @@ async function initDb() {
       recipient TEXT DEFAULT '',
       message TEXT DEFAULT '',
       memories JSONB NOT NULL DEFAULT '[]'::jsonb,
+      relationship_date DATE,
+      version INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE mixtapes ADD COLUMN IF NOT EXISTS memories JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE mixtapes ADD COLUMN IF NOT EXISTS relationship_date DATE;
+    ALTER TABLE mixtapes ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE IF NOT EXISTS songs (
       id BIGSERIAL PRIMARY KEY,
       mixtape_id BIGINT REFERENCES mixtapes(id) ON DELETE CASCADE,
@@ -93,6 +114,7 @@ async function initDb() {
       url TEXT DEFAULT '',
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE INDEX IF NOT EXISTS songs_mixtape_position_idx ON songs (mixtape_id, position);
   `);
 }
 
@@ -110,39 +132,49 @@ app.get("/health", async (_req,res) => {
 });
 
 app.get("/api/mixes/:slug", async (req,res) => {
+  const safeSlug=cleanText(req.params.slug,60).toLowerCase();
+  if (!/^[a-z0-9-]{3,60}$/.test(safeSlug)) return res.status(400).json({error:"Invalid mixtape slug"});
   if (!pool) return res.json(fallbackMix);
   try {
-    const mix = await getMix(req.params.slug);
+    const mix = await getMix(safeSlug);
     if (!mix) return res.status(404).json({error:"Mixtape not found"});
     res.json(mix);
-  } catch (e) { res.status(500).json({error:"Could not load mixtape"}); }
+  } catch { res.status(500).json({error:"Could not load mixtape"}); }
 });
 
 app.post("/api/mixes", requireOwner, async (req,res) => {
   if (!pool) return res.status(503).json({error:"Database is not configured yet"});
-  const { slug, title, recipient="", message="", songs=[], memories=[] } = req.body || {};
+  const { slug, title, recipient="", message="", songs=[], memories=[], relationshipDate=null, version=null } = req.body || {};
   if (!slug || !title) return res.status(400).json({error:"slug and title are required"});
   const safeSlug=cleanText(slug,60).toLowerCase(), safeTitle=cleanText(title,200), safeRecipient=cleanText(recipient,120), safeMessage=cleanText(message,2000);
   if (!/^[a-z0-9-]{3,60}$/.test(safeSlug) || !safeTitle) return res.status(400).json({error:"invalid mixtape data"});
   const safeSongs=(Array.isArray(songs)?songs:[]).slice(0,100).map(song=>({title:cleanText(song?.title,200),artist:cleanText(song?.artist,160),note:cleanText(song?.note,500),url:cleanUrl(song?.url)})).filter(song=>song.title);
   const safeMemories=cleanMemories(memories);
+  const safeDate = relationshipDate && /^\d{4}-\d{2}-\d{2}$/.test(relationshipDate) ? relationshipDate : null;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const existing = await client.query("SELECT id,version FROM mixtapes WHERE slug=$1 FOR UPDATE",[safeSlug]);
+    if (existing.rows[0]) {
+      const currentVersion = Number(existing.rows[0].version || 1);
+      if (version !== null && Number(version) !== currentVersion) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Mixtape changed elsewhere. Reload before saving.",version:currentVersion});
+      }
+    }
     const mix = await client.query(
-      "INSERT INTO mixtapes(slug,title,recipient,message,memories) VALUES($1,$2,$3,$4,$5) ON CONFLICT(slug) DO UPDATE SET title=EXCLUDED.title,recipient=EXCLUDED.recipient,message=EXCLUDED.message,memories=EXCLUDED.memories,updated_at=NOW() RETURNING *",
-      [safeSlug,safeTitle,safeRecipient,safeMessage,JSON.stringify(safeMemories)]
+      "INSERT INTO mixtapes(slug,title,recipient,message,memories,relationship_date,version) VALUES($1,$2,$3,$4,$5,$6,1) ON CONFLICT(slug) DO UPDATE SET title=EXCLUDED.title,recipient=EXCLUDED.recipient,message=EXCLUDED.message,memories=EXCLUDED.memories,relationship_date=EXCLUDED.relationship_date,version=mixtapes.version+1,updated_at=NOW() RETURNING *",
+      [safeSlug,safeTitle,safeRecipient,safeMessage,JSON.stringify(safeMemories),safeDate]
     );
     await client.query("DELETE FROM songs WHERE mixtape_id=$1",[mix.rows[0].id]);
     for (const [position,song] of safeSongs.entries()) {
-      if (!song?.title) continue;
       await client.query(
         "INSERT INTO songs(mixtape_id,position,title,artist,note,url) VALUES($1,$2,$3,$4,$5,$6)",
         [mix.rows[0].id,position,song.title,song.artist,song.note,song.url]
       );
     }
     await client.query("COMMIT");
-    res.status(201).json(await getMix(slug));
+    res.status(201).json(await getMix(safeSlug));
   } catch (e) {
     await client.query("ROLLBACK");
     res.status(500).json({error:"Could not save mixtape"});
