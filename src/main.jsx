@@ -37,7 +37,8 @@ function App() {
   const initialSlug = slugFromPath();
   const [songs, setSongs] = useState(starterSongs);
   const [playing, setPlaying] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);\n  const [editingSong, setEditingSong] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingSong, setEditingSong] = useState(null);
   const [copied, setCopied] = useState(false);
   const [dragged, setDragged] = useState(null);
   const [newSong, setNewSong] = useState({ title: "", artist: "", note: "", url: "" });
