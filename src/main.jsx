@@ -97,7 +97,8 @@ function App() {
     window.addEventListener("popstate", onPopState);
     let cancelled = false;
     if (!apiBase) {
-      setLoadState("ready");
+      setLoadState("offline");
+      if (isSharedMix) setLoadError(true);
       return;
     }
     setLoadState("loading");
@@ -272,6 +273,10 @@ function App() {
     if (value) localStorage.setItem(dateKey, value);
     else localStorage.removeItem(dateKey);
   }
+
+  if (isSharedMix && loadState === "loading") return (
+    <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> loading our little mixtape</p><h1>One second.<br/><i>I'm fetching it.</i></h1><p>Pulling the songs and memories from our tiny corner of the internet.</p></section></main>
+  );
 
   if (loadError) return (
     <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape unavailable</p><h1>We lost the<br/><i>connection.</i></h1><p>This shared mixtape could not be loaded right now. Nothing was replaced with demo content.</p><button className="primary-btn" onClick={() => window.location.reload()}>Try again</button></section></main>
