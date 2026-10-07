@@ -124,7 +124,10 @@ async function getMix(slug) {
 }
 
 app.get("/health", async (_req,res) => {
-  if (!pool) return res.json({ ok:true, database:"not-configured" });
+  if (!pool) {
+    if (process.env.NODE_ENV === "production") return res.status(503).json({ok:false,database:"not-configured"});
+    return res.json({ ok:true, database:"not-configured" });
+  }
   try { await pool.query("SELECT 1"); res.json({ok:true,database:"connected"}); }
   catch { res.status(503).json({ok:false,database:"unavailable"}); }
 });
