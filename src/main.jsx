@@ -9,7 +9,22 @@ const starterSongs = [
   { id: 3, title: "For the late nights", artist: "your soundtrack", note: "For every little moment after midnight.", cover: "♬", url: "" }
 ];
 
-function getEmbedUrl(url) {
+function getYouTubeVideoId(url) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
+    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1).split("/")[0];
+  } catch {}
+  return "";
+}
+
+function getYouTubeWatchUrl(url) {
+  const id = getYouTubeVideoId(url);
+  return id ? `https://www.youtube.com/watch?v=${id}` : "";
+}
+
+function getSpotifyEmbedUrl(url) {
   if (!url) return "";
   try {
     const u = new URL(url);
@@ -19,11 +34,6 @@ function getEmbedUrl(url) {
         return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}?utm_source=generator`;
       }
     }
-    if (u.hostname.includes("youtube.com")) {
-      const id = u.searchParams.get("v");
-      return id ? `https://www.youtube.com/embed/${id}` : "";
-    }
-    if (u.hostname.includes("youtu.be")) return `https://www.youtube-nocookie.com/embed/${u.pathname.slice(1)}?playsinline=1&rel=0&enablejsapi=1`;
   } catch {}
   return "";
 }
@@ -37,6 +47,8 @@ function App() {
   const initialSlug = slugFromPath();
   const [songs, setSongs] = useState(starterSongs);
   const [playing, setPlaying] = useState(null);
+  const [floatingPlayer, setFloatingPlayer] = useState(null);
+  const [tapeCorner, setTapeCorner] = useState("top-right");
   const [showAdd, setShowAdd] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -77,6 +89,29 @@ function App() {
 
   function openEdit(song) {
     setEditingSong({...song});
+  }
+
+  function toggleSong(song) {
+    const youtubeId = getYouTubeVideoId(song.url);
+    const spotifyEmbed = getSpotifyEmbedUrl(song.url);
+    if (!youtubeId && !spotifyEmbed) {
+      setPlaying(playing === song.id ? null : song.id);
+      setFloatingPlayer(null);
+      return;
+    }
+    if (playing === song.id) {
+      setPlaying(null);
+      setFloatingPlayer(null);
+      return;
+    }
+    setPlaying(song.id);
+    if (youtubeId) {
+      const corners = ["top-right", "top-left", "bottom-right", "bottom-left"];
+      setTapeCorner(corners[Math.floor(Math.random() * corners.length)]);
+      setFloatingPlayer({ songId: song.id, videoId: youtubeId });
+    } else {
+      setFloatingPlayer(null);
+    }
   }
 
   function saveEditedSong(e) {
@@ -199,20 +234,39 @@ function App() {
         <p className="section-hint"><GripVertical size={14}/> drag songs to change the order · {loadState==="loading" ? "loading your mixtape..." : loadState==="offline" ? "API not connected yet" : "save to keep this link forever"}</p>
         <div className="song-list">
           {songs.map((song, index) => {
-            const embed = getEmbedUrl(song.url);
+            const youtubeId = getYouTubeVideoId(song.url);
+            const spotifyEmbed = getSpotifyEmbedUrl(song.url);
             return <article className={`song-card ${playing === song.id ? "is-playing" : ""}`} key={song.id} draggable onDragStart={() => setDragged(song.id)} onDragOver={e => e.preventDefault()} onDrop={() => dropSong(song.id)}>
               <GripVertical className="grip" size={17}/>
               <span className="track-no">{String(index + 1).padStart(2,"0")}</span>
               <div className="cover">{song.cover}</div>
               <div className="song-info"><h3>{song.title}</h3><p>{song.artist}</p><small>“{song.note}”</small></div>
-              <div className="song-actions"><button className="edit-song" onClick={() => openEdit(song)} aria-label={`Edit ${song.title}`}><Pencil size={14}/></button><button className="play" onClick={() => setPlaying(playing === song.id ? null : song.id)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button></div>
-              {playing === song.id && embed && <div className="embed-wrap"><iframe src={embed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
-              {playing === song.id && !embed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback. <button className="inline-edit" onClick={() => openEdit(song)}>Add link</button></div>}
+              <div className="song-actions"><button className="edit-song" onClick={() => openEdit(song)} aria-label={`Edit ${song.title}`}><Pencil size={14}/></button><button className="play" onClick={() => toggleSong(song)} aria-label="Toggle player">{playing === song.id ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}</button></div>
+              {playing === song.id && spotifyEmbed && <div className="embed-wrap"><iframe src={spotifyEmbed} title={`Player for ${song.title}`} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"/></div>}
+              {playing === song.id && !youtubeId && !spotifyEmbed && <div className="player-note"><Headphones size={15}/> Add a Spotify or YouTube URL to enable playback. <button className="inline-edit" onClick={() => openEdit(song)}>Add link</button></div>}
             </article>;
           })}
         </div>
         <button className="add-row" onClick={() => setShowAdd(true)}><Plus size={18}/> add another song <span>+</span></button>
       </section>
+
+      {floatingPlayer && <div className={`floating-tape-player ${tapeCorner}`} aria-live="polite">
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${floatingPlayer.videoId}?autoplay=1&controls=0&playsinline=1&rel=0&fs=0&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+          title="Mixtape audio player"
+          allow="autoplay; encrypted-media; picture-in-picture"
+        />
+        <button
+          className="floating-tape"
+          onClick={() => window.open(getYouTubeWatchUrl(songs.find(song => song.id === floatingPlayer.songId)?.url || ""), "_blank", "noopener,noreferrer")}
+          aria-label="Open this song on YouTube"
+        >
+          <span className="tape-reel tape-reel-left" />
+          <span className="tape-center"><strong>OUR MIX</strong><small>now playing</small></span>
+          <span className="tape-reel tape-reel-right" />
+        </button>
+        <button className="floating-close" onClick={() => { setFloatingPlayer(null); setPlaying(null); }} aria-label="Stop playback"><X size={13}/></button>
+      </div>}
 
       <section className="memories section">
         <div className="memory-copy">
