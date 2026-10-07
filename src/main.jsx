@@ -77,6 +77,8 @@ function App() {
   const [slug, setSlug] = useState(initialSlug);
   const [saveState, setSaveState] = useState("");
   const [loadState, setLoadState] = useState("loading");
+  const [ownerToken, setOwnerToken] = useState(() => sessionStorage.getItem("our-mixtape-owner-token") || "");
+  const [showOwnerLogin, setShowOwnerLogin] = useState(false);
   const apiBase = import.meta.env.VITE_API_URL || "";
   const shareUrl = useMemo(() => window.location.href, [slug]);
 
@@ -191,6 +193,10 @@ function App() {
   }
 
   async function saveMixtape() {
+    if (!ownerToken) {
+      setShowOwnerLogin(true);
+      return;
+    }
     const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     if (cleanSlug.length < 3) {
       setSaveState("error");
@@ -201,7 +207,7 @@ function App() {
     try {
       const res = await fetch(apiBase + "/api/mixes", {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
+        headers: {"Content-Type":"application/json", "Authorization": "Bearer " + ownerToken},
         body: JSON.stringify({
           slug: cleanSlug,
           title: "A little mixtape for you.",
@@ -211,6 +217,12 @@ function App() {
           memories
         })
       });
+      if (res.status === 401) {
+        sessionStorage.removeItem("our-mixtape-owner-token");
+        setOwnerToken("");
+        setShowOwnerLogin(true);
+        throw new Error("unauthorized");
+      }
       if (!res.ok) throw new Error("save failed");
       window.history.pushState({}, "", `/mix/${cleanSlug}`);
       setSaveState("saved");
@@ -372,6 +384,18 @@ function App() {
           <p className="signature">always yours ♡</p>
         </div>
       </section>
+
+      {showOwnerLogin && <div className="modal-backdrop" onMouseDown={() => setShowOwnerLogin(false)}>
+        <div className="modal" onMouseDown={e => e.stopPropagation()}>
+          <button className="close" onClick={() => setShowOwnerLogin(false)}><X size={19}/></button>
+          <p className="eyebrow">private editing</p><h2>Unlock <i>our mixtape.</i></h2>
+          <p className="owner-note">Viewing is public. Saving is private. Your owner key stays only in this browser session.</p>
+          <form onSubmit={e => { e.preventDefault(); const value = e.currentTarget.elements.ownerKey.value.trim(); if (!value) return; sessionStorage.setItem("our-mixtape-owner-token", value); setOwnerToken(value); setShowOwnerLogin(false); }}>
+            <label>Owner key<input name="ownerKey" type="password" autoFocus autoComplete="off" placeholder="paste your private owner key" required/></label>
+            <button className="primary-btn" type="submit"><Heart size={16}/> Unlock editing</button>
+          </form>
+        </div>
+      </div>}
 
       <footer><Heart size={14} fill="currentColor"/> made for two <span>·</span> V3 · our little world</footer>
 
