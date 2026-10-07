@@ -323,6 +323,15 @@ function App() {
     } catch {}
   }
 
+  useEffect(() => {
+    const onPointerMove = (e) => {
+      document.documentElement.style.setProperty("--mx", `${e.clientX}px`);
+      document.documentElement.style.setProperty("--my", `${e.clientY}px`);
+    };
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onPointerMove);
+  }, []);
+
   return (
     <main>
       <nav className="nav">
@@ -330,7 +339,7 @@ function App() {
         <div className="nav-actions"><button className="save-btn" onClick={saveMixtape}><Heart size={14} fill={saveState==="saved" ? "currentColor" : "none"}/>{saveState==="saving" ? "Saving..." : saveState==="saved" ? "Saved!" : saveState==="conflict" ? "Reload needed" : saveState==="error" ? "Try again" : "Save"}</button><button className="share-btn" onClick={share}><Link2 size={15}/>{copied ? "Copied!" : "Share"}</button></div>
       </nav>
 
-      <section className="hero section">
+      <section className="hero section playful-cursor">
         <div className="hero-copy">
           <p className="eyebrow"><Heart size={13} fill="currentColor"/> made with stupid amounts of love</p>
           <h1 className="skiper-title">A little<br/><i>mixtape</i> for you.</h1>
@@ -353,7 +362,7 @@ function App() {
         </div>
       </section>
 
-      <section id="songs" className="songs section">
+      <section id="songs" className="songs section playful-cursor">
         <div className="section-head skiper-reveal">
           <div><p className="eyebrow">side A · our soundtrack</p><h2>The songs that<br/><i>feel like us.</i></h2></div>
           <span className="count">{String(songs.length).padStart(2,"0")} tracks</span>
@@ -396,7 +405,7 @@ function App() {
         <button className="floating-close" onClick={() => { setFloatingPlayer(null); setPlaying(null); }} aria-label="Stop playback"><X size={13}/></button>
       </div>}
 
-      <section className="story section">
+      <section className="story section playful-cursor">
         <div className="story-top skiper-reveal">
           <div>
             <p className="eyebrow"><Heart size={13} fill="currentColor"/> our little timeline</p>
@@ -423,7 +432,7 @@ function App() {
         <button className="add-memory" onClick={() => setShowMemory(true)}><Plus size={17}/> add a memory</button>
       </section>
 
-      <section className="favorites section">
+      <section className="favorites section playful-cursor">
         <div className="favorites-head skiper-reveal">
           <p className="eyebrow"><Sparkles size={13}/> little things</p>
           <h2>Things I love<br/><i>about you.</i></h2>
@@ -433,7 +442,7 @@ function App() {
         </div>
       </section>
 
-      <section className="letter section">
+      <section className="letter section playful-cursor">
         <div className="letter-paper skiper-reveal">
           <p className="hand">a note for you</p>
           <h2>Hey, you.</h2>
