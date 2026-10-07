@@ -257,7 +257,11 @@ function App() {
     else localStorage.removeItem("our-mixtape-date");
   }
 
-  if (notFound) return (\n    <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape missing</p><h1>That little mixtape<br/><i>doesn’t exist.</i></h1><p>The link may be wrong, or this mixtape has not been saved yet.</p><a className="primary-btn" href="/">Back to our mixtape</a></section></main>\n  );\n\n  function daysTogether() {
+  if (notFound) return (
+    <main className="not-found-page"><section className="not-found-card"><p className="eyebrow"><Heart size={13} fill="currentColor"/> mixtape missing</p><h1>That little mixtape<br/><i>doesn’t exist.</i></h1><p>The link may be wrong, or this mixtape has not been saved yet.</p><a className="primary-btn" href="/">Back to our mixtape</a></section></main>
+  );
+
+  function daysTogether() {
     if (!ourDate) return null;
     const start = new Date(ourDate + "T00:00:00");
     if (Number.isNaN(start.getTime())) return null;
